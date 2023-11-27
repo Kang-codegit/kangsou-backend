@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/kangso-backend-master/kango-backend.iml" filepath="$PROJECT_DIR$/kangso-backend-master/kango-backend.iml" />
+      <module fileurl="file://$PROJECT_DIR$/yuso-backend-master/kangso-backend.iml" filepath="$PROJECT_DIR$/yuso-backend-master/kangso-backend.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/kangso-backend-master.iml" filepath="$PROJECT_DIR$/.idea/kangso-backend-master.iml" />
+    </modules>
+  </component>
+</project>
