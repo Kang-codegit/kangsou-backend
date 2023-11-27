@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * 帖子服务实现
@@ -41,6 +42,7 @@ public class PostDataSource implements DataSource<PostVO> {
     public Page<PostVO> doSearch(String searchText, long pageNum, long pageSize) {
         ServletRequestAttributes servletRequestAttributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         HttpServletRequest request = servletRequestAttributes.getRequest();
+        
         long current = (pageNum - 1) * pageSize;
         String url = String.format("https://cn.bing.com/search?q=%s&first=%s",searchText,current);
         Document doc = null;

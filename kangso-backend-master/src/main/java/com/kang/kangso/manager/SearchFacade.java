@@ -42,7 +42,7 @@ public class SearchFacade {
     private VideoDataSource videoDataSource;
 
 
-    public SearchVO searchAll(SearchRequest searchRequest, HttpServletRequest request){
+    public SearchVO searchAll(SearchRequest searchRequest, HttpServletRequest request) {
         String type = searchRequest.getType();
         SearchTypeEnum searchTypeEnum = SearchTypeEnum.getEnumByValue(type);
 //        ThrowUtils.throwIf(StringUtils.isBlank(type), ErrorCode.PARAMS_ERROR);
@@ -50,9 +50,6 @@ public class SearchFacade {
 
         long current = searchRequest.getCurrent();
         long pageSize = searchRequest.getPageSize();
-
-
-
         ServletRequestAttributes sra = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         RequestContextHolder.setRequestAttributes(sra, true);
         if (searchTypeEnum == null) {
@@ -62,15 +59,15 @@ public class SearchFacade {
             CompletableFuture<Page<UserVO>> userTask = CompletableFuture.supplyAsync(() -> {
                 UserQueryRequest userQueryRequest = new UserQueryRequest();
                 userQueryRequest.setUserName(searchText);
-                return userDataSource.doSearch(searchText,current,pageSize);
+                return userDataSource.doSearch(searchText, current, pageSize);
             });
             CompletableFuture<Page<PostVO>> postTask = CompletableFuture.supplyAsync(() -> {
                 PostQueryRequest postQueryRequest = new PostQueryRequest();
                 postQueryRequest.setSearchText(searchText);
-                return postDataSource.doSearch(searchText,current,pageSize);
+                return postDataSource.doSearch(searchText, current, pageSize);
             });
             CompletableFuture<Page<VideoVO>> videoTask = CompletableFuture.supplyAsync(() -> {
-                return videoDataSource.doSearch(searchText,current,pageSize);
+                return videoDataSource.doSearch(searchText, current, pageSize);
             });
 
             CompletableFuture.allOf(pictureTask, userTask, pictureTask).join();
@@ -87,7 +84,15 @@ public class SearchFacade {
                 e.printStackTrace();
             }
             return searchVO;
-//            Page<Picture> picturePage = pictureDataSource.doSearch(searchText, 1, 20);
+        } else {
+            DataSource<?> dataSource = dataSourceRegistry.getDataSource(searchTypeEnum.getValue());
+            Page<?> page = dataSource.doSearch(searchText, current, pageSize);
+            SearchVO searchVO = new SearchVO();
+            searchVO.setDataList(page.getRecords());
+            return searchVO;
+        }
+    }
+    //            Page<Picture> picturePage = pictureDataSource.doSearch(searchText, 1, 20);
 //
 //            UserQueryRequest userQueryRequest = new UserQueryRequest();
 //            userQueryRequest.setUserName(searchText);
@@ -104,12 +109,4 @@ public class SearchFacade {
 //            searchVO.setPostList(postVOPage.getRecords());
 //            searchVO.setVideoList(videoVoPage.getRecords());
 //            return searchVO;
-        } else {
-            DataSource<?> dataSource = dataSourceRegistry.getDataSource(searchTypeEnum.getValue());
-            Page<?> page = dataSource.doSearch(searchText, current, pageSize);
-            SearchVO searchVO = new SearchVO();
-            searchVO.setDataList(page.getRecords());
-            return searchVO;
-        }
-    }
 }
