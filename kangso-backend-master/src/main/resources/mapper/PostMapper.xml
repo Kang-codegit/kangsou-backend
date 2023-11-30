@@ -33,4 +33,8 @@
         from post
         where updateTime >= #{minUpdateTime}
     </select>
+    
+    <select id="getByTitle" resultType="com.kang.kangso.model.entity.Post">
+        select * from post where title=#{title}
+    </select>
 </mapper>
