@@ -13,7 +13,7 @@ spring:
       matching-strategy: ant_path_matcher
   # session 配置
   session:
-    store-type: redis
+    store-type: none
     # 30 天过期
     timeout: 2592000
   # 数据库配置
@@ -40,6 +40,7 @@ spring:
     multipart:
       # 大小限制
       max-file-size: 10MB
+#canal
 canal:
   destination: example
   server: 127.0.0.1:11111
@@ -52,6 +53,9 @@ server:
     session:
       cookie:
         max-age: 2592000
+#elastic
+#action:
+#  auto_create_index: true
 #canal:
 #  client:
 #    instances:

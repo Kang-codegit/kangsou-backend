@@ -27,8 +27,6 @@ create table if not exists user
 ) comment '用户' collate = utf8mb4_unicode_ci;
 
 -- 帖子表
-use kang_so;
-drop table post;
 create table if not exists post
 (
     id         bigint auto_increment comment 'id' primary key,
@@ -40,7 +38,7 @@ create table if not exists post
     tags       varchar(1024)                      null comment '标签列表（json 数组）',
     thumbNum   int      default 0                 not null comment '点赞数',
     favourNum  int      default 0                 not null comment '收藏数',
-    userId     bigint                             not null comment '创建用户 id',
+    userId     bigint                             null comment '创建用户 id',
     createTime datetime default CURRENT_TIMESTAMP not null comment '创建时间',
     updateTime datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
     isDelete   tinyint  default 0                 not null comment '是否删除',
