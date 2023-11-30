@@ -12,6 +12,7 @@ import com.kang.kangso.mapper.PostFavourMapper;
 import com.kang.kangso.mapper.PostMapper;
 import com.kang.kangso.mapper.PostThumbMapper;
 import com.kang.kangso.model.dto.post.PostEsDTO;
+import com.kang.kangso.model.dto.post.PostEsHighlightData;
 import com.kang.kangso.model.dto.post.PostQueryRequest;
 import com.kang.kangso.model.entity.Post;
 import com.kang.kangso.model.entity.PostFavour;
@@ -22,6 +23,10 @@ import com.kang.kangso.model.vo.UserVO;
 import com.kang.kangso.service.PostService;
 import com.kang.kangso.service.UserService;
 import com.kang.kangso.utils.SqlUtils;
+
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -30,15 +35,21 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.elasticsearch.core.ElasticsearchRestTemplate;
 import org.springframework.data.elasticsearch.core.SearchHit;
@@ -64,13 +75,21 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
 
     @Resource
     private PostThumbMapper postThumbMapper;
-
+    
+    @Resource
+    private PostMapper postMapper;
+    
     @Resource
     private PostFavourMapper postFavourMapper;
 
     @Resource
     private ElasticsearchRestTemplate elasticsearchRestTemplate;
 
+    @Override
+    public Post getByTitle(String title){
+        return postMapper.getByTitle(title);
+    }
+    
     @Override
     public void validPost(Post post, boolean add) {
         if (post == null) {
@@ -134,7 +153,92 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
     }
 
     @Override
+    public List<Post> searchFromBY(String searchText, long pageNum, long pageSize) {
+        long current = (pageNum - 1) * pageSize;
+        String encodedSearchText;
+        try {
+            encodedSearchText = URLEncoder.encode(searchText, "UTF-8").replace("+", "%20");
+        } catch (UnsupportedEncodingException e) {
+            // 处理异常
+            encodedSearchText = searchText;
+        }
+        // 构建URL
+        String url = String.format("https://cn.bing.com/search?q=%s&first=%s", encodedSearchText, current);
+        Document doc = null;
+        try {
+            doc = Jsoup.connect(url).get();
+        } catch (IOException e) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "数据获取异常");
+        }
+
+        Elements elements = doc.select(".b_algo");
+        NativeSearchQueryBuilder searchQueryBuilder = new NativeSearchQueryBuilder();
+        List<Post> postList = new ArrayList<>();
+        for (Element element : elements) {
+            // 获取链接
+            String href = element.select("a").attr("href");
+            // 取标题
+            String title = element.select("h2 a").text();
+            // 取内容
+            String content = element.select(".b_caption p").text();
+            // 设置高亮
+            HighlightBuilder.Field titleField = new HighlightBuilder.Field("title");
+            titleField.preTags(CommonConstant.PRE_TAG);
+            titleField.postTags(CommonConstant.POST_TAG);
+            HighlightBuilder.Field contentField = new HighlightBuilder.Field("constant");
+            contentField.preTags(CommonConstant.PRE_TAG);
+            contentField.postTags(CommonConstant.POST_TAG);
+            searchQueryBuilder.withHighlightFields(titleField, contentField);
+            Post post = new Post();
+            post.setTitle(title);
+            post.setHref(href);
+            post.setContent(content);
+            post.setSearchText(searchText);
+            postList.add(post);
+        }
+        return postList;
+
+    }
+
+    //                if (postList.size() >= pageSize) {
+//                break;
+//            }
+//        try {
+//            SearchHits<Post> searchHits = elasticsearchRestTemplate.search(searchQueryBuilder.build(), Post.class);
+//            if (searchHits.getTotalHits() > 0) {
+//                return convertToHighlightedPage(searchHits, pageNum, pageSize);
+//            }
+//        } catch (Exception e) {
+//            log.error(e.getMessage());
+//        }
+//     如果搜索失败或者没有结果，使用原来的逻辑
+//        Page<Post> postPage = new Page<>(pageNum, pageSize);
+//        postPage.setRecords(postList); 
+//        
+    @Override
+    public Page<PostVO> convertToHighlightedPage(SearchHits<PostVO> searchHits, long pageNum, long pageSize) {
+        List<PostVO> highlightedPosts = searchHits.getSearchHits().stream().map(hit -> {
+            PostVO postVO = hit.getContent();
+            // Highlight title
+            List<String> titleHighlights = hit.getHighlightFields().get("title");
+            if (CollectionUtils.isNotEmpty(titleHighlights)) {
+                postVO.setTitle(titleHighlights.get(0));
+            }
+            // Highlight content
+            List<String> contentHighlights = hit.getHighlightFields().get("content");
+            if (CollectionUtils.isNotEmpty(contentHighlights)) {
+                postVO.setContent(contentHighlights.get(0));
+            }
+            return postVO;
+        }).collect(Collectors.toList());
+        Page<PostVO> highlightedPage = new Page<>(pageNum, pageSize);
+        highlightedPage.setRecords(highlightedPosts);
+        return highlightedPage;
+    }
+
+    @Override
     public Page<Post> searchFromEs(PostQueryRequest postQueryRequest) {
+        // 获取查询数据
         Long id = postQueryRequest.getId();
         Long notId = postQueryRequest.getNotId();
         String searchText = postQueryRequest.getSearchText();
@@ -175,7 +279,7 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
             orTagBoolQueryBuilder.minimumShouldMatch(1);
             boolQueryBuilder.filter(orTagBoolQueryBuilder);
         }
-        // 按关键词检索
+        // 按关键词检索 满足其一√
         if (StringUtils.isNotBlank(searchText)) {
             boolQueryBuilder.should(QueryBuilders.matchQuery("title", searchText));
             boolQueryBuilder.should(QueryBuilders.matchQuery("content", searchText));
@@ -191,6 +295,13 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
             boolQueryBuilder.should(QueryBuilders.matchQuery("content", content));
             boolQueryBuilder.minimumShouldMatch(1);
         }
+        // 搜索关键词高亮
+        HighlightBuilder highlightBuilder = new HighlightBuilder();
+        highlightBuilder.field("*").preTags("<font color='#eea6b7'>")
+                .postTags("</font>");
+        ; //所有的字段都高亮
+        highlightBuilder.requireFieldMatch(false);//如果要多个字段高亮,这项要为false
+
         // 排序
         SortBuilder<?> sortBuilder = SortBuilders.scoreSort();
         if (StringUtils.isNotBlank(sortField)) {
@@ -201,23 +312,53 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
         PageRequest pageRequest = PageRequest.of((int) current, (int) pageSize);
         // 构造查询
         NativeSearchQuery searchQuery = new NativeSearchQueryBuilder().withQuery(boolQueryBuilder)
+                .withHighlightBuilder(highlightBuilder)
                 .withPageable(pageRequest).withSorts(sortBuilder).build();
         SearchHits<PostEsDTO> searchHits = elasticsearchRestTemplate.search(searchQuery, PostEsDTO.class);
+
         Page<Post> page = new Page<>();
         page.setTotal(searchHits.getTotalHits());
         List<Post> resourceList = new ArrayList<>();
         // 查出结果后，从 db 获取最新动态数据（比如点赞数）
         if (searchHits.hasSearchHits()) {
             List<SearchHit<PostEsDTO>> searchHitList = searchHits.getSearchHits();
+            // 搜索关键词高亮
+            Map<Long, PostEsHighlightData> highlightDataMap = new HashMap<>();
+            for (SearchHit hit : searchHits.getSearchHits()) {
+                PostEsHighlightData data = new PostEsHighlightData();
+                data.setId(Long.valueOf(hit.getId()));
+                if (hit.getHighlightFields().get("title") != null) {
+                    String highlightTitle = String.valueOf(hit.getHighlightFields().get("title"));
+                    data.setTitle(highlightTitle.substring(1, highlightTitle.length() - 1));
+                    System.out.println(data.getTitle());
+                }
+                if (hit.getHighlightFields().get("content") != null) {
+                    String highlightContent = String.valueOf(hit.getHighlightFields().get("content"));
+                    data.setContent(highlightContent.substring(1, highlightContent.length() - 1));
+                    System.out.println(data.getContent());
+                }
+                highlightDataMap.put(data.getId(), data);
+            }
+            // id列表
             List<Long> postIdList = searchHitList.stream().map(searchHit -> searchHit.getContent().getId())
                     .collect(Collectors.toList());
-            // 从数据库中取出更完整的数据
+            // 根据id查找数据集
             List<Post> postList = baseMapper.selectBatchIds(postIdList);
             if (postList != null) {
                 Map<Long, List<Post>> idPostMap = postList.stream().collect(Collectors.groupingBy(Post::getId));
                 postIdList.forEach(postId -> {
                     if (idPostMap.containsKey(postId)) {
-                        resourceList.add(idPostMap.get(postId).get(0));
+                        // 搜索关键词高亮替换
+                        Post post = idPostMap.get(postId).get(0);
+                        String hl_title = highlightDataMap.get(postId).getTitle();
+                        String hl_content = highlightDataMap.get(postId).getContent();
+                        if (hl_title != null && hl_title.trim() != "") {
+                            post.setTitle(hl_title);
+                        }
+                        if (hl_content != null && hl_content.trim() != "") {
+                            post.setContent(hl_content);
+                        }
+                        resourceList.add(post);
                     } else {
                         // 从 es 清空 db 已物理删除的数据
                         String delete = elasticsearchRestTemplate.delete(String.valueOf(postId), PostEsDTO.class);

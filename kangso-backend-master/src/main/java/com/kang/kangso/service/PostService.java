@@ -6,7 +6,10 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.kang.kangso.model.dto.post.PostQueryRequest;
 import com.kang.kangso.model.entity.Post;
 import com.kang.kangso.model.vo.PostVO;
+import org.springframework.data.elasticsearch.core.SearchHits;
+
 import javax.servlet.http.HttpServletRequest;
+import java.util.List;
 
 /**
  * 帖子服务
@@ -15,6 +18,8 @@ import javax.servlet.http.HttpServletRequest;
  * @from <a href="https://yupi.icu">编程导航知识星球</a>
  */
 public interface PostService extends IService<Post> {
+
+    Post getByTitle(String title);
 
     /**
      * 校验
@@ -31,6 +36,17 @@ public interface PostService extends IService<Post> {
      * @return
      */
     QueryWrapper<Post> getQueryWrapper(PostQueryRequest postQueryRequest);
+
+    /**
+     * 从必应查询文章
+     * @param searchText
+     * @param pageNum
+     * @param pageSize
+     * @return
+     */
+    List<Post> searchFromBY(String searchText, long pageNum, long pageSize);
+
+    Page<PostVO> convertToHighlightedPage(SearchHits<PostVO> searchHits, long pageNum, long pageSize);
 
     /**
      * 从 ES 查询
