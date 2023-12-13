@@ -8,6 +8,7 @@ import java.util.Date;
 import java.util.List;
 import lombok.Data;
 import org.springframework.beans.BeanUtils;
+import org.springframework.data.elasticsearch.annotations.Document;
 
 /**
  * 帖子视图
@@ -16,6 +17,7 @@ import org.springframework.beans.BeanUtils;
  * @from <a href="https://yupi.icu">编程导航知识星球</a>
  */
 @Data
+@Document(indexName = "post")
 public class PostVO implements Serializable {
 
     private final static Gson GSON = new Gson();

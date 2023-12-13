@@ -13,7 +13,6 @@ import java.util.Map;
  * 数据源注册器
  *
  * @author kang
- * @from <a href="https://yupi.icu">编程导航知识星球</a>
  */
 @Component
 public class DataSourceRegistry {

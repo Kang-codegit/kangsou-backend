@@ -4,12 +4,14 @@ import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.kang.kangso.common.ErrorCode;
 import com.kang.kangso.constant.CommonConstant;
+import com.kang.kangso.constant.RedisPrefixConst;
 import com.kang.kangso.exception.BusinessException;
 import com.kang.kangso.model.dto.post.PostQueryRequest;
 import com.kang.kangso.model.entity.Picture;
 import com.kang.kangso.model.entity.Post;
 import com.kang.kangso.model.vo.PostVO;
 import com.kang.kangso.service.PostService;
+import com.kang.kangso.service.RedisService;
 import javafx.geometry.Pos;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -50,7 +52,9 @@ public class PostDataSource implements DataSource<PostVO> {
 
     @Resource
     private ElasticsearchRestTemplate elasticsearchRestTemplate;
-
+    
+    @Resource
+    private RedisService redisService;
     @Override
     public Page<PostVO> doSearch(String searchText, long pageNum, long pageSize) {
         PostQueryRequest postQueryRequest = new PostQueryRequest();
@@ -58,19 +62,17 @@ public class PostDataSource implements DataSource<PostVO> {
         postQueryRequest.setCurrent(pageNum);
         postQueryRequest.setPageSize(pageSize);
         List<Post> PostList = postService.searchFromBY(searchText, pageNum, pageSize);
+        String searchTextPostPrefix= RedisPrefixConst.SEARCH_POST+searchText;
+        List<Object> postObjectList=redisService.lRange(searchTextPostPrefix,0,-1);
+        Page<Post> postPage = postService.searchFromEs(postQueryRequest);
+        if(postObjectList.size()>0){
+            Page<PostVO> postList=(Page<PostVO>) postObjectList.get(0);
+            return postList;
+        }
         for(Post post:PostList){
             Post existPost=postService.getByTitle(post.getTitle());
             if(existPost!=null){
-                // 存在相同 title 的记录，更新 updateTime
-                existPost.setUpdateTime(post.getUpdateTime());
-                // 其他可能需要更新的字段也在这里更新
-                // 执行更新操作
-                boolean b=postService.updateById(existPost);
-                if(b){
-                    log.info("数据更新成功");
-                }else {
-                    log.error("数据更新失败");
-                }
+                log.info("查询到数据");
             }else{
                 boolean b=postService.save(post);
                 if(b){
@@ -82,7 +84,7 @@ public class PostDataSource implements DataSource<PostVO> {
         }
         ServletRequestAttributes servletRequestAttributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         HttpServletRequest request = servletRequestAttributes.getRequest();
-        Page<Post> postPage = postService.searchFromEs(postQueryRequest);
+        redisService.lPush(searchTextPostPrefix,postPage,60);
         return postService.getPostVOPage(postPage, request);
     }
     

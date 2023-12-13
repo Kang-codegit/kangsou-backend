@@ -1,6 +1,8 @@
 package com.kang.kangso.model.vo;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.kang.kangso.model.entity.Picture;
+import lombok.Builder;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -18,6 +20,8 @@ public class SearchVO implements Serializable {
 
     private List<Picture> pictureList;
 
+    private Page<Picture> picturePage;
+    
     private List<VideoVO> videoList;
 
     private List<?> dataList;
