@@ -334,7 +334,7 @@ public interface RedisService {
      *
      * @param key   key
      * @param value value
-     * @return 增加后的长度
+     * @return 增加后的长度c
      */
     Long lPush(String key, Object value);
 
